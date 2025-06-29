@@ -882,6 +882,28 @@ namespace Multiplayer.Client
                 }, true // Implicit
             },
             {
+                (ByteWriter data, Action<PlanetTile, TransportersArrivalAction> action) =>
+                {
+                    WriteSync<object>(data, action.Target);
+                    data.WriteString(action.Method.Name);
+                },
+                (ByteReader data) =>
+                {
+                    // ReadSyncObject can infer the type from the data stream.
+                    var target = ReadSync<object>(data);
+                    var methodName = data.ReadString();
+                    // Use the ReadSync helper for arrays.
+                    var parameterTypes = ReadSync<Type[]>(data);
+
+                    if (target == null || methodName == null) return null;
+
+                    var method = AccessTools.Method(target.GetType(), methodName, parameterTypes);
+                    if (method == null) return null;
+
+                    return (Action<PlanetTile, TransportersArrivalAction>)Delegate.CreateDelegate(typeof(Action<PlanetTile, TransportersArrivalAction>), target, method);
+                }
+            },
+            {
                 (SyncWorker data, ref WorldObjectComp comp) => {
                     if (data.isWriting) {
                         if (comp != null) {
@@ -932,6 +954,16 @@ namespace Multiplayer.Client
             {
                 (ByteWriter data, Caravan_ForageTracker tracker) => WriteSync(data, tracker?.caravan),
                 (ByteReader data) => ReadSync<Caravan>(data)?.forage
+            },
+            {
+                // TODO: Consider using int16 rather that int32 to minimize network traffic.
+                // Investigate if the tiles/layers are small enough to allow that.
+                (ByteWriter data, PlanetTile tile) => 
+                {
+                    data.WriteInt32(tile.tileId);
+                    data.WriteInt32(tile.layerId);
+                },
+                (ByteReader data) => new PlanetTile(data.ReadInt32(), data.ReadInt32()), true // Implicit
             },
             #endregion
 

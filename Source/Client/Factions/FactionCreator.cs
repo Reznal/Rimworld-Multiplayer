@@ -28,7 +28,7 @@ public static class FactionCreator
 
     [SyncMethod]
     public static void CreateFaction(
-        int playerId, string factionName, int tile,
+        int playerId, string factionName, PlanetTile tile,
         [CanBeNull] ScenarioDef scenarioDef, ChooseIdeoInfo chooseIdeoInfo,
         bool generateMap
     )
@@ -80,7 +80,7 @@ public static class FactionCreator
         }, "GeneratingMap", doAsynchronously: true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
     }
 
-    private static Map GenerateNewMap(int tile, Scenario scenario)
+    private static Map GenerateNewMap(PlanetTile tile, Scenario scenario)
     {
         // This has to be null, otherwise, during map generation, Faction.OfPlayer returns it which breaks FactionContext
         Find.GameInitData.playerFaction = null;
