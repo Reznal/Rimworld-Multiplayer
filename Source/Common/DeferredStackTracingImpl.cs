@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Verse;
 
 namespace Multiplayer.Client.Desyncs;
 
@@ -36,113 +37,240 @@ public static class DeferredStackTracingImpl
 
     public static unsafe int TraceImpl(long[] traceIn, ref int hash)
     {
-        long[] trace = traceIn;
-        long rbp = GetRbp();
-        long stck = rbp;
-        rbp = *(long*)rbp;
-
-        int indexmask = hashtableSize - 1;
-        int shift = hashtableShift;
-
-        long ret;
-        long lmfPtr = *(long*)Native.LmfPtr;
-
-        int depth = 0;
-
-        while (true)
+        // Critical safety checks - prevent null reference exceptions
+        if (traceIn == null)
         {
-            ret = *(long*)(stck + 8);
-
-            int index = (int)(HashAddr((ulong)ret) >> shift);
-            ref var info = ref hashtable[index];
-            int colls = 0;
-
-            // Open addressing
-            while (info.addr != 0 && info.addr != ret)
-            {
-                index = (index + 1) & indexmask;
-                info = ref hashtable[index];
-                colls++;
-            }
-
-            if (colls > collisions)
-                collisions = colls;
-
-            long stackUsage = 0;
-
-            if (info.addr != 0)
-                stackUsage = info.stackUsage;
-            else
-                stackUsage = UpdateNewElement(ref info, ret);
-
-            if (stackUsage == NotJit)
-            {
-                // LMF (Last Managed Frame) layout on x64:
-                // previous
-                // rbp
-                // rsp
-
-                lmfPtr = *(long*)lmfPtr;
-                var lmfRbp = *(long*)(lmfPtr + 8);
-
-                if (lmfPtr == 0 || lmfRbp == 0)
-                    break;
-
-                rbp = lmfRbp;
-                stck = *(long*)(lmfPtr + 16) - 16;
-
-                continue;
-            }
-
-            trace[depth] = ret;
-
-            // info.nameHash == 0 marks methods to skip
-            if (depth < HashInfluence && info.nameHash != 0)
-                hash = HashCombineInt(hash, (int)info.nameHash);
-
-            if (info.nameHash != 0 && ++depth == MaxDepth)
-                break;
-
-            if (stackUsage == RbpBased)
-            {
-                stck = rbp;
-                rbp = *(long*)rbp;
-                continue;
-            }
-
-            stck += 8;
-
-            if ((stackUsage & UsesRbpAsGpr) != 0)
-            {
-                if ((stackUsage & UsesRbx) != 0)
-                    rbp = *(long*)(stck + 16);
-                else
-                    rbp = *(long*)(stck + 8);
-
-                stackUsage &= RbpInfoClearMask;
-            }
-
-            stck += stackUsage;
+            // Log error and return safely
+            if (MpVersion.IsDebug)
+                Log.Error("DeferredStackTracing: traceIn array is null");
+            return 0;
         }
 
-        return depth;
+        // Additional safety check for Native.LmfPtr
+        if (Native.LmfPtr == 0)
+        {
+            if (MpVersion.IsDebug)
+                Log.Warning("DeferredStackTracing: Native.LmfPtr is not initialized");
+            return 0;
+        }
+
+        try
+        {
+            long[] trace = traceIn;
+            long rbp = GetRbp();
+            long stck = rbp;
+            
+            // Safety check for initial RBP
+            if (rbp == 0)
+            {
+                if (MpVersion.IsDebug)
+                    Log.Warning("DeferredStackTracing: Initial RBP is null");
+                return 0;
+            }
+
+            rbp = *(long*)rbp;
+
+            int indexmask = hashtableSize - 1;
+            int shift = hashtableShift;
+
+            long ret;
+            long lmfPtr = *(long*)Native.LmfPtr;
+
+            int depth = 0;
+
+            while (true)
+            {
+                // Safety check for stack pointer
+                if (stck == 0)
+                {
+                    if (MpVersion.IsDebug)
+                        Log.Warning("DeferredStackTracing: Stack pointer became null");
+                    break;
+                }
+
+                ret = *(long*)(stck + 8);
+
+                int index = (int)(HashAddr((ulong)ret) >> shift);
+                ref var info = ref hashtable[index];
+                int colls = 0;
+
+                // Open addressing
+                while (info.addr != 0 && info.addr != ret)
+                {
+                    index = (index + 1) & indexmask;
+                    info = ref hashtable[index];
+                    colls++;
+                }
+
+                if (colls > collisions)
+                    collisions = colls;
+
+                long stackUsage = 0;
+
+                if (info.addr != 0)
+                    stackUsage = info.stackUsage;
+                else
+                {
+                    try
+                    {
+                        stackUsage = UpdateNewElement(ref info, ret);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Error($"DeferredStackTracing: Failed to update new element for addr {ret:X}: {ex.Message}");
+                        stackUsage = NotJit; // Treat as non-JIT to continue
+                    }
+                }
+
+                if (stackUsage == NotJit)
+                {
+                    // LMF (Last Managed Frame) layout on x64:
+                    // previous
+                    // rbp
+                    // rsp
+
+                    // Safety check for LMF operations
+                    if (lmfPtr == 0)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Warning("DeferredStackTracing: LMF pointer is null, stopping trace");
+                        break;
+                    }
+
+                    try
+                    {
+                        lmfPtr = *(long*)lmfPtr;
+                        if (lmfPtr == 0)
+                            break;
+
+                        var lmfRbp = *(long*)(lmfPtr + 8);
+                        if (lmfRbp == 0)
+                            break;
+
+                        rbp = lmfRbp;
+                        stck = *(long*)(lmfPtr + 16) - 16;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Error($"DeferredStackTracing: LMF access failed: {ex.Message}");
+                        break;
+                    }
+
+                    continue;
+                }
+
+                // Safety check for trace array bounds
+                if (depth >= trace.Length)
+                {
+                    if (MpVersion.IsDebug)
+                        Log.Warning($"DeferredStackTracing: Trace depth {depth} exceeds array length {trace.Length}");
+                    break;
+                }
+
+                trace[depth] = ret;
+
+                // info.nameHash == 0 marks methods to skip
+                if (depth < HashInfluence && info.nameHash != 0)
+                    hash = HashCombineInt(hash, (int)info.nameHash);
+
+                if (info.nameHash != 0 && ++depth == MaxDepth)
+                    break;
+
+                if (stackUsage == RbpBased)
+                {
+                    // Safety check for RBP operations
+                    if (rbp == 0)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Warning("DeferredStackTracing: RBP became null during RBP-based tracing");
+                        break;
+                    }
+
+                    try
+                    {
+                        stck = rbp;
+                        rbp = *(long*)rbp;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Error($"DeferredStackTracing: RBP access failed: {ex.Message}");
+                        break;
+                    }
+                    continue;
+                }
+
+                stck += 8;
+
+                if ((stackUsage & UsesRbpAsGpr) != 0)
+                {
+                    try
+                    {
+                        if ((stackUsage & UsesRbx) != 0)
+                            rbp = *(long*)(stck + 16);
+                        else
+                            rbp = *(long*)(stck + 8);
+
+                        stackUsage &= RbpInfoClearMask;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (MpVersion.IsDebug)
+                            Log.Error($"DeferredStackTracing: GPR RBP access failed: {ex.Message}");
+                        break;
+                    }
+                }
+
+                stck += stackUsage;
+            }
+
+            return depth;
+        }
+        catch (Exception ex)
+        {
+            // Catch-all for any remaining exceptions
+            if (MpVersion.IsDebug)
+                Log.Error($"DeferredStackTracing: Unexpected error in TraceImpl: {ex}");
+            return 0;
+        }
     }
 
     static long UpdateNewElement(ref AddrInfo info, long ret)
     {
-        long stackUsage = GetStackUsage(ret);
+        try
+        {
+            long stackUsage = GetStackUsage(ret);
 
-        info.addr = ret;
-        info.stackUsage = stackUsage;
+            info.addr = ret;
+            info.stackUsage = stackUsage;
 
-        var rawName = Native.MethodNameFromAddr(ret, true); // Use the original instead of replacement for hashing
-        info.nameHash = rawName != null ? Native.GetMethodAggressiveInlining(ret) ? 0 : StableStringHash(rawName) : 1;
+            // Safety check for Native method calls
+            try
+            {
+                var rawName = Native.MethodNameFromAddr(ret, true); // Use the original instead of replacement for hashing
+                info.nameHash = rawName != null ? Native.GetMethodAggressiveInlining(ret) ? 0 : StableStringHash(rawName) : 1;
+            }
+            catch (Exception ex)
+            {
+                if (MpVersion.IsDebug)
+                    Log.Warning($"DeferredStackTracing: Failed to get method name for addr {ret:X}: {ex.Message}");
+                info.nameHash = 1; // Default hash value
+            }
 
-        hashtableEntries++;
-        if (hashtableEntries > hashtableSize * LoadFactor)
-            ResizeHashtable();
+            hashtableEntries++;
+            if (hashtableEntries > hashtableSize * LoadFactor)
+                ResizeHashtable();
 
-        return stackUsage;
+            return stackUsage;
+        }
+        catch (Exception ex)
+        {
+            if (MpVersion.IsDebug)
+                Log.Error($"DeferredStackTracing: Failed to update new element: {ex}");
+            return NotJit; // Return safe value to continue
+        }
     }
 
     static ulong HashAddr(ulong addr) => ((addr >> 4) | addr << 60) * 11400714819323198485;
@@ -182,55 +310,111 @@ public static class DeferredStackTracingImpl
 
     static unsafe long GetStackUsage(long addr)
     {
-        var ji = Native.mono_jit_info_table_find(Native.DomainPtr, (IntPtr)addr);
-
-        if (ji == IntPtr.Zero)
-            return NotJit;
-
-        var start = (uint*)Native.mono_jit_info_get_code_start(ji);
-        long usage = 0;
-
-        if ((*start & 0xFFFFFF) == 0xEC8348) // sub rsp,XX (4883EC XX)
+        try
         {
-            usage = *start >> 24;
-            start += 1;
-        } else if ((*start & 0xFFFFFF) == 0xEC8148) // sub rsp,XXXXXXXX (4881EC XXXXXXXX)
-        {
-            usage = *(uint*)((long)start + 3);
-            start = (uint*)((long)start + 7);
+            // Safety check for Native.DomainPtr
+            if (Native.DomainPtr == IntPtr.Zero)
+            {
+                if (MpVersion.IsDebug)
+                    Log.Warning("DeferredStackTracing: Native.DomainPtr is null");
+                return NotJit;
+            }
+
+            var ji = Native.mono_jit_info_table_find(Native.DomainPtr, (IntPtr)addr);
+
+            if (ji == IntPtr.Zero)
+                return NotJit;
+
+            var start = (uint*)Native.mono_jit_info_get_code_start(ji);
+            
+            // Safety check for code start pointer
+            if (start == null)
+            {
+                if (MpVersion.IsDebug)
+                    Log.Warning("DeferredStackTracing: Code start pointer is null");
+                return NotJit;
+            }
+
+            long usage = 0;
+
+            if ((*start & 0xFFFFFF) == 0xEC8348) // sub rsp,XX (4883EC XX)
+            {
+                usage = *start >> 24;
+                start += 1;
+            } else if ((*start & 0xFFFFFF) == 0xEC8148) // sub rsp,XXXXXXXX (4881EC XXXXXXXX)
+            {
+                usage = *(uint*)((long)start + 3);
+                start = (uint*)((long)start + 7);
+            }
+
+            if (usage != 0)
+            {
+                CheckRbpUsage(start, ref usage);
+                return usage;
+            }
+
+            // push rbp (55)
+            if (*(byte*)start == 0x55)
+                return RbpBased;
+
+            // Instead of throwing exception, log warning and return safe value
+            if (MpVersion.IsDebug)
+            {
+                try
+                {
+                    var methodName = Native.MethodNameFromAddr(addr, false);
+                    Log.Warning($"DeferredStackTracing: Unknown function header {*start:X} for method {methodName ?? "unknown"}");
+                }
+                catch
+                {
+                    Log.Warning($"DeferredStackTracing: Unknown function header {*start:X} at addr {addr:X}");
+                }
+            }
+            return NotJit; // Return safe value instead of throwing
         }
-
-        if (usage != 0)
+        catch (Exception ex)
         {
-            CheckRbpUsage(start, ref usage);
-            return usage;
+            if (MpVersion.IsDebug)
+                Log.Error($"DeferredStackTracing: Exception in GetStackUsage for addr {addr:X}: {ex}");
+            return NotJit; // Return safe value on any exception
         }
-
-        // push rbp (55)
-        if (*(byte*)start == 0x55)
-            return RbpBased;
-
-        throw new Exception($"Deferred stack tracing: Unknown function header {*start} {Native.MethodNameFromAddr(addr, false)}");
     }
 
     private static unsafe void CheckRbpUsage(uint* at, ref long stackUsage)
     {
-        // If rbp is used as a gp reg then the prologue looks like (after frame alloc):
-        // mov [rsp],rbp   (48892C24)
-        // or:
-        // mov [rsp],rbx   (48891C24)
-        // mov [rsp+8],rbp (48896C2408)
-        // (The calle saved registers are always in the same order
-        // and are saved at the bottom of the frame)
+        try
+        {
+            // Safety check for null pointer
+            if (at == null)
+            {
+                if (MpVersion.IsDebug)
+                    Log.Warning("DeferredStackTracing: CheckRbpUsage called with null pointer");
+                return;
+            }
 
-        if (*at == 0x242C8948)
-        {
-            stackUsage |= UsesRbpAsGpr;
+            // If rbp is used as a gp reg then the prologue looks like (after frame alloc):
+            // mov [rsp],rbp   (48892C24)
+            // or:
+            // mov [rsp],rbx   (48891C24)
+            // mov [rsp+8],rbp (48896C2408)
+            // (The calle saved registers are always in the same order
+            // and are saved at the bottom of the frame)
+
+            if (*at == 0x242C8948)
+            {
+                stackUsage |= UsesRbpAsGpr;
+            }
+            else if (*at == 0x241C8948 && *(at + 1) == 0x246C8948)
+            {
+                stackUsage |= UsesRbpAsGpr;
+                stackUsage |= UsesRbx;
+            }
         }
-        else if (*at == 0x241C8948 && *(at + 1) == 0x246C8948)
+        catch (Exception ex)
         {
-            stackUsage |= UsesRbpAsGpr;
-            stackUsage |= UsesRbx;
+            if (MpVersion.IsDebug)
+                Log.Error($"DeferredStackTracing: Exception in CheckRbpUsage: {ex.Message}");
+            // Don't modify stackUsage on error
         }
     }
 
