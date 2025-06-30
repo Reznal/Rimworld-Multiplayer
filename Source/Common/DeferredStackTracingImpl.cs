@@ -238,7 +238,7 @@ public static class DeferredStackTracingImpl
     static unsafe long GetRbp()
     {
         long rbp = 0;
-        return *(&rbp + 1);
+        return *(&rbp + 4); // Use offset 4 which works consistently in RimWorld 1.6
     }
 
     public static int HashCombineInt(int seed, int value)
