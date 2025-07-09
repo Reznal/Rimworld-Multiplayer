@@ -103,12 +103,31 @@ public static class IngameDebug
         //    RandGetValuePatch.tracesThistick = 0;
     }
 
-    // Original comprehensive debug information method
-    // Now replaced by SyncDebugPanel.DoSyncDebugPanel for enhanced UI/UX
-    // DoDebugPrintout() disabled to prevent overlap with new enhanced panel
-    public static float DoDevInfo(float y)
+
+    internal static float DoDevInfo(float y)
     {
-        // Legacy debug display disabled - now handled by SyncDebugPanel
+        float x = UI.screenWidth - BtnWidth - BtnMargin;
+
+        if (Multiplayer.ShowDevInfo && Multiplayer.WriterLog != null)
+        {
+            if (Widgets.ButtonText(new Rect(x, y, BtnWidth, BtnHeight), $"Write ({Multiplayer.WriterLog.NodeCount})"))
+                Find.WindowStack.Add(Multiplayer.WriterLog);
+
+            y += BtnHeight;
+            if (Widgets.ButtonText(new Rect(x, y, BtnWidth, BtnHeight), $"Read ({Multiplayer.ReaderLog.NodeCount})"))
+                Find.WindowStack.Add(Multiplayer.ReaderLog);
+
+            y += BtnHeight;
+            var oldGhostMode = Multiplayer.session.ghostModeCheckbox;
+            Widgets.CheckboxLabeled(new Rect(x, y, BtnWidth, 30f), "Ghost", ref Multiplayer.session.ghostModeCheckbox);
+            if (oldGhostMode != Multiplayer.session.ghostModeCheckbox)
+            {
+                SyncFieldUtil.ClearAllBufferedChanges();
+            }
+
+            return BtnHeight * 3;
+        }
+
         return 0;
     }
 

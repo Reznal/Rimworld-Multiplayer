@@ -37,8 +37,8 @@ namespace Multiplayer.Client.DebugUi
         public static float DoSyncDebugPanel(float y)
         {
             // Safety checks
-            if (Multiplayer.session == null) return 0;
-            
+            if (Multiplayer.session == null || !MpVersion.IsDebug || !Multiplayer.ShowDevInfo || Multiplayer.WriterLog == null) return 0;
+
             try
             {
                 float x = Margin;
@@ -96,7 +96,7 @@ namespace Multiplayer.Client.DebugUi
                 currentX = DrawCompactStatusBadge(currentX, centerY, performanceStatus.icon, performanceStatus.text, performanceStatus.color, performanceStatus.tooltip);
                 currentX += 4f;
                 
-                // Error status [📊 0]
+                // RNG status [📊 0]
                 currentX = DrawCompactStatusBadge(currentX, centerY, errorStatus.icon, errorStatus.text, errorStatus.color, errorStatus.tooltip);
                 currentX += 4f;
                 
@@ -240,8 +240,8 @@ namespace Multiplayer.Client.DebugUi
                 currentX = DrawCompactStatusBadge(currentX, centerY, performanceStatus.icon, performanceStatus.text, performanceStatus.color, performanceStatus.tooltip);
                 currentX += 4f;
                 
-                // Error status [■ 0]
-                currentX = DrawCompactStatusBadge(currentX, centerY, errorStatus.icon, errorStatus.text, errorStatus.color, errorStatus.tooltip);
+                            // RNG status [■ 0]
+            currentX = DrawCompactStatusBadge(currentX, centerY, errorStatus.icon, errorStatus.text, errorStatus.color, errorStatus.tooltip);
                 currentX += 4f;
                 
                 // Tick status [♦ 3]
@@ -299,7 +299,7 @@ namespace Multiplayer.Client.DebugUi
             // Status lines
             y = DrawStatusLine(x, y, width, "Sync Status:", syncStatus.text, syncStatus.color);
             y = DrawStatusLine(x, y, width, "Performance:", performanceStatus.text, performanceStatus.color);
-            y = DrawStatusLine(x, y, width, "Error Rate:", errorStatus.text, errorStatus.color);
+            y = DrawStatusLine(x, y, width, "Status:", errorStatus.text, errorStatus.color);
             y = DrawStatusLine(x, y, width, "Tick Status:", tickStatus.text, tickStatus.color);
             
             return y - startY;
@@ -319,21 +319,19 @@ namespace Multiplayer.Client.DebugUi
                 var async = Find.CurrentMap.AsyncTime();
                 var worldAsync = Multiplayer.AsyncWorldTime;
                 
-                // Map RNG state
+                // Current Map RNG state
                 string mapRngLow = $"{(uint)async.randState:X8}";
                 string mapRngHigh = $"{(uint)(async.randState >> 32):X8}";
-                y = DrawStatusLine(x, y, width, "Map RNG:", $"{mapRngHigh} | {mapRngLow}", Color.white);
+                y = DrawStatusLine(x, y, width, "Current Map:", $"{mapRngHigh} | {mapRngLow}", Color.white);
                 
                 // World RNG state  
                 string worldRngLow = $"{(uint)worldAsync.randState:X8}";
                 string worldRngHigh = $"{(uint)(worldAsync.randState >> 32):X8}";
                 y = DrawStatusLine(x, y, width, "World RNG:", $"{worldRngHigh} | {worldRngLow}", Color.white);
                 
-                // Sync indicator
-                bool rngInSync = async.randState == worldAsync.randState;
-                Color syncColor = rngInSync ? Color.green : Color.red;
-                string syncText = rngInSync ? "✓ In Sync" : "✗ Desync Detected";
-                y = DrawStatusLine(x, y, width, "RNG Sync:", syncText, syncColor);
+                // Round Mode
+                var roundMode = RoundMode.GetCurrentRoundMode();
+                y = DrawStatusLine(x, y, width, "Round Mode:", $"{roundMode}", Color.white);
             }
             else
             {
@@ -414,16 +412,12 @@ namespace Multiplayer.Client.DebugUi
         {
             float startY = y;
             
-            y = DrawSectionHeader(x, y, width, "DETAILED DEBUG");
-            
-            // Add existing comprehensive debug information here
-            // This preserves all the valuable debug data from IngameDebug.DoDebugPrintout
-            
             if (Multiplayer.ShowDevInfo && Find.CurrentMap != null)
             {
                 var async = Find.CurrentMap.AsyncTime();
                 
-                // Core debug information
+                // ===== CORE SYSTEM DATA =====
+                y = DrawSectionHeader(x, y, width, "CORE SYSTEM");
                 y = DrawStatusLine(x, y, width, "Faction Stack:", $"{FactionContext.stack.Count}", Color.white);
                 y = DrawStatusLine(x, y, width, "Player Faction:", $"{Faction.OfPlayer.loadID}", Color.white);
                 y = DrawStatusLine(x, y, width, "Real Player:", $"{Multiplayer.RealPlayerFaction?.loadID}", Color.white);
@@ -431,24 +425,78 @@ namespace Multiplayer.Client.DebugUi
                 y = DrawStatusLine(x, y, width, "Next Job ID:", $"{Find.UniqueIDsManager.nextJobID}", Color.white);
                 y = DrawStatusLine(x, y, width, "Game Ticks:", $"{Find.TickManager.TicksGame}", Color.white);
                 y = DrawStatusLine(x, y, width, "Time Speed:", $"{Find.TickManager.CurTimeSpeed}", Color.white);
+                y += SectionSpacing;
                 
-                // Timing information
+                // ===== TIMING & SYNC DATA =====
+                y = DrawSectionHeader(x, y, width, "TIMING & SYNC");
                 int timerLag = TickPatch.tickUntil - TickPatch.Timer;
                 Color lagColor = timerLag > 30 ? Color.red : timerLag > 15 ? Color.yellow : Color.green;
                 y = DrawStatusLine(x, y, width, "Timer Lag:", $"{timerLag}", lagColor);
                 y = DrawStatusLine(x, y, width, "Timer:", $"{TickPatch.Timer}", Color.white);
                 y = DrawStatusLine(x, y, width, "Tick Until:", $"{TickPatch.tickUntil}", Color.white);
+                y = DrawStatusLine(x, y, width, "Raw Tick Timer:", $"{TickPatch.tickTimer.ElapsedMilliseconds}ms", Color.white);
+                y = DrawStatusLine(x, y, width, "World Settlements:", $"{Find.World.worldObjects.settlements.Count}", Color.white);
+                y += SectionSpacing;
                 
-                // Error tracking
-                y = DrawStatusLine(x, y, width, "DST Errors:", $"{DeferredStackTracing.acc}", 
-                    DeferredStackTracing.acc > 0 ? Color.red : Color.green);
+                // ===== GAME STATE DATA =====
+                y = DrawSectionHeader(x, y, width, "GAME STATE");
+                y = DrawStatusLine(x, y, width, "Classic Mode:", $"{Find.IdeoManager.classicMode}", Color.white);
+                y = DrawStatusLine(x, y, width, "Client Opinions:", $"{Multiplayer.game.sync.knownClientOpinions.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "First Opinion Tick:", $"{Multiplayer.game.sync.knownClientOpinions.FirstOrDefault()?.startTick}", Color.white);
+                y = DrawStatusLine(x, y, width, "Map Ticks:", $"{async.mapTicks}", Color.white);
+                y = DrawStatusLine(x, y, width, "Frozen At:", $"{TickPatch.frozenAt}", Color.white);
+                y += SectionSpacing;
                 
-                // Memory and system info
-                y = DrawStatusLine(x, y, width, "Buffered Changes:", $"{SyncFieldUtil.bufferedChanges.Sum(kv => kv.Value.Count)}", Color.white);
-                y = DrawStatusLine(x, y, width, "World Pawns:", $"{Find.WorldPawns.AllPawnsAliveOrDead.Count}", Color.white);
-                y = DrawStatusLine(x, y, width, "Pool Free Items:", $"{SimplePool<StackTraceLogItemRaw>.FreeItemsCount}", Color.white);
+                // ===== RNG & DEBUG DATA =====
+                y = DrawSectionHeader(x, y, width, "RNG & DEBUG");
+                y = DrawStatusLine(x, y, width, "Rand Calls:", $"{DeferredStackTracing.acc}", Color.white);
+                y = DrawStatusLine(x, y, width, "Max Trace Depth:", $"{DeferredStackTracing.maxTraceDepth}", Color.white);
                 y = DrawStatusLine(x, y, width, "Hash Entries:", $"{DeferredStackTracingImpl.hashtableEntries}/{DeferredStackTracingImpl.hashtableSize}", Color.white);
                 y = DrawStatusLine(x, y, width, "Hash Collisions:", $"{DeferredStackTracingImpl.collisions}", Color.white);
+                y += SectionSpacing;
+                
+                // ===== COMMAND & SYNC DATA =====
+                y = DrawSectionHeader(x, y, width, "COMMAND & SYNC");
+                y = DrawStatusLine(x, y, width, "Async Commands:", $"{async.cmds.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "World Commands:", $"{Multiplayer.AsyncWorldTime.cmds.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "Force Normal Speed:", $"{async.slower.forceNormalSpeedUntil}", Color.white);
+                y = DrawStatusLine(x, y, width, "Async Time Status:", $"{Multiplayer.GameComp.asyncTime}", Color.white);
+                y = DrawStatusLine(x, y, width, "Buffered Changes:", $"{SyncFieldUtil.bufferedChanges.Sum(kv => kv.Value.Count)}", Color.white);
+                y += SectionSpacing;
+                
+                // ===== MEMORY & PERFORMANCE DATA =====
+                y = DrawSectionHeader(x, y, width, "MEMORY & PERFORMANCE");
+                y = DrawStatusLine(x, y, width, "World Pawns:", $"{Find.WorldPawns.AllPawnsAliveOrDead.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "Pool Free Items:", $"{SimplePool<StackTraceLogItemRaw>.FreeItemsCount}", Color.white);
+                
+                // Calculated server performance
+                var calcStpt = TickPatch.tickUntil - TickPatch.Timer <= 3 ? TickPatch.serverTimePerTick * 1.2f :
+                    TickPatch.tickUntil - TickPatch.Timer >= 7 ? TickPatch.serverTimePerTick * 0.8f :
+                    TickPatch.serverTimePerTick;
+                y = DrawStatusLine(x, y, width, "Calc Server TPT:", $"{calcStpt:F1}ms", Color.white);
+                y += SectionSpacing;
+                
+                // ===== MAP MANAGEMENT DATA =====
+                y = DrawSectionHeader(x, y, width, "MAP MANAGEMENT");
+                y = DrawStatusLine(x, y, width, "Haul Destinations:", $"{Find.CurrentMap.haulDestinationManager.AllHaulDestinationsListForReading.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "Designations:", $"{Find.CurrentMap.designationManager.designationsByDef.Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "Haulable Items:", $"{Find.CurrentMap.listerHaulables.ThingsPotentiallyNeedingHauling().Count}", Color.white);
+                y = DrawStatusLine(x, y, width, "Mining Designations:", $"{Find.CurrentMap.designationManager.SpawnedDesignationsOfDef(DesignationDefOf.Mine).Count()}", Color.white);
+                y = DrawStatusLine(x, y, width, "First Ideology ID:", $"{Find.IdeoManager.IdeosInViewOrder.FirstOrDefault()?.id}", Color.white);
+                
+                // Faction-specific data (if available)
+                if (Find.CurrentMap.ParentFaction != null)
+                {
+                    int faction = Find.CurrentMap.ParentFaction.loadID;
+                    MultiplayerMapComp comp = Find.CurrentMap.MpComp();
+                    FactionMapData data = comp.factionData.TryGetValue(faction);
+                    
+                    if (data != null)
+                    {
+                        y = DrawStatusLine(x, y, width, "Faction Haulables:", $"{data.listerHaulables.ThingsPotentiallyNeedingHauling().Count}", Color.white);
+                        y = DrawStatusLine(x, y, width, "Faction Haul Groups:", $"{data.haulDestinationManager.AllGroupsListForReading.Count}", Color.white);
+                    }
+                }
             }
             
             return y - startY;
@@ -520,18 +568,22 @@ namespace Multiplayer.Client.DebugUi
         {
             try
             {
-                if (Find.CurrentMap?.AsyncTime() != null && Multiplayer.AsyncWorldTime != null)
+                // Check if there's an active multiplayer session and desync detection
+                if (Multiplayer.session != null)
                 {
-                    var async = Find.CurrentMap.AsyncTime();
-                    var worldAsync = Multiplayer.AsyncWorldTime;
-                    bool inSync = async.randState == worldAsync.randState;
+                    bool hasDesynced = Multiplayer.session.players.Any(p => p.status == PlayerStatus.Desynced);
                     
-                    return inSync 
-                        ? ("●", Color.green, "SYNC", "RNG states are synchronized")
-                        : ("●", Color.red, "DESYNC", "RNG states are out of sync!");
+                    if (hasDesynced)
+                        return ("●", Color.red, "DESYNC", "Players have desynced!");
+                    
+                    // Check if we're in a valid sync state
+                    if (Multiplayer.session.desynced)
+                        return ("●", Color.red, "DESYNC", "Session has desynced");
+                    
+                    return ("●", Color.green, "SYNC", "All players are synchronized");
                 }
                 
-                return ("●", Color.yellow, "N/A", "No current map");
+                return ("●", Color.yellow, "N/A", "No active session");
             }
             catch (Exception ex)
             {
@@ -564,19 +616,13 @@ namespace Multiplayer.Client.DebugUi
         {
             try
             {
-                int errors = DeferredStackTracing.acc;
-                
-                if (errors == 0)
-                    return ("■", Color.green, "0", "No errors detected");
-                else if (errors < 10)
-                    return ("■", Color.yellow, $"{errors}", "Some errors detected");
-                else
-                    return ("■", Color.red, $"{errors}", "Many errors detected!");
+                // For now, return a placeholder - we can add a more useful metric here later
+                return ("■", Color.gray, "N/A", "No critical metric");
             }
             catch (Exception ex)
             {
                 Log.Warning($"GetErrorStatus error: {ex.Message}");
-                return ("?", Color.gray, "ERR", "Error getting error status");
+                return ("?", Color.gray, "ERR", "Error getting status");
             }
         }
         
@@ -621,7 +667,8 @@ namespace Multiplayer.Client.DebugUi
             height += LineHeight + 6f; // Header
             if (Find.CurrentMap?.AsyncTime() != null)
             {
-                height += 3 * (LineHeight + 1f); // 3 RNG lines
+                // Base RNG lines: Current Map, World, Round Mode
+                height += 3 * (LineHeight + 1f);
             }
             else
             {
@@ -646,11 +693,23 @@ namespace Multiplayer.Client.DebugUi
             }
             height += SectionSpacing;
             
-            // Detailed debug section
-            height += LineHeight + 6f; // Header
+            // Detailed debug section (organized into 6 subsections)
             if (Multiplayer.ShowDevInfo && Find.CurrentMap != null)
             {
-                height += 15 * (LineHeight + 1f); // Actual debug lines count
+                // Core System: 7 lines + header
+                height += LineHeight + 6f + 7 * (LineHeight + 1f) + SectionSpacing;
+                // Timing & Sync: 5 lines + header  
+                height += LineHeight + 6f + 5 * (LineHeight + 1f) + SectionSpacing;
+                // Game State: 5 lines + header
+                height += LineHeight + 6f + 5 * (LineHeight + 1f) + SectionSpacing;
+                // Map Management: 5-7 lines + header (including faction data) - moved to bottom
+                height += LineHeight + 6f + 7 * (LineHeight + 1f);
+                // RNG & Debug: 4 lines + header
+                height += LineHeight + 6f + 4 * (LineHeight + 1f) + SectionSpacing;
+                // Command & Sync: 5 lines + header
+                height += LineHeight + 6f + 5 * (LineHeight + 1f) + SectionSpacing;
+                // Memory & Performance: 3 lines + header
+                height += LineHeight + 6f + 3 * (LineHeight + 1f);
             }
             else
             {
