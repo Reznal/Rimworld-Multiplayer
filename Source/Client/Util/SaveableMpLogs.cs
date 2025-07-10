@@ -38,17 +38,11 @@ public class SaveableMpLogs
 
     public static void AddLog(string logText)
     {
-        Log.Message($"MpLog: {logText}");
-        // Don't log if not connected
         if (Multiplayer.Client == null)
-        {
             return;
-        }
 
         if (_currentLogFile == null)
-        {
             InitMpLogs();
-        }
 
         int ticks = Find.TickManager.ticksGameInt;
         int mapTicks = Find.CurrentMap?.AsyncTime()?.mapTicks ?? -1;
@@ -82,7 +76,7 @@ public class SaveableMpLogs
             .AppendLine("\n###OS Info###")
             .AppendLine($"OS Type|||{SystemInfo.operatingSystemFamily}")
             .AppendLine($"OS Name and Version|||{SystemInfo.operatingSystem}")
-            .AppendLine("======================================================")
+            .AppendLine("\n======================================================")
             .AppendLine("###Log Start###")
             .AppendLine("======================================================");
         return logDetails.ToString();
@@ -91,7 +85,7 @@ public class SaveableMpLogs
     private static string FindFileNameForNextFile()
     {
         // Get player directory
-        string directory = Path.Combine(Multiplayer.MpLogsDir, Multiplayer.username);
+        string directory = Path.Combine(Multiplayer.MpLogsDir);//, Multiplayer.username);
 
         // Ensure the directory exists
         Directory.CreateDirectory(directory);
