@@ -39,6 +39,7 @@ namespace Multiplayer.Client.Patches
             {
                 int previousMap = Find.CurrentMap?.uniqueID ?? -1;
                 int newMap = value?.uniqueID ?? -1;
+                int currentTick = Find.TickManager?.TicksGame ?? 0;
 
                 // Only send when multiplayer is ready
                 if (Multiplayer.Client == null || Client.Multiplayer.session == null)
@@ -49,7 +50,7 @@ namespace Multiplayer.Client.Patches
                     return;
 
                 // Prevent duplicate commands for the same transition, but allow retry after a tick
-                if (lastSentFromMap == previousMap && Find.TickManager?.TicksGame == lastSentTick)
+                if (lastSentFromMap == previousMap && currentTick == lastSentTick)
                     return;
 
                 // Send map change command to server
@@ -58,7 +59,7 @@ namespace Multiplayer.Client.Patches
 
                 // Track this command to prevent duplicates
                 lastSentFromMap = previousMap;
-                lastSentTick = Find.TickManager?.TicksGame ?? 0;
+                lastSentTick = currentTick;
             }
             catch (Exception ex)
             {
