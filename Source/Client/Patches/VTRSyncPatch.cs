@@ -29,6 +29,7 @@ namespace Multiplayer.Client.Patches
     static class MapSwitchPatch
     {
         private static int lastSentFromMap = int.MaxValue;
+        private static int lastSentTick = -1;
 
         static void Prefix(Map value)
         {
@@ -48,7 +49,7 @@ namespace Multiplayer.Client.Patches
                     return;
 
                 // Prevent duplicate commands for the same transition, but allow retry after a tick
-                if (lastSentFromMap == previousMap)
+                if (lastSentFromMap == previousMap && Find.TickManager?.TicksGame == lastSentTick)
                     return;
 
                 // Send map change command to server
@@ -57,6 +58,7 @@ namespace Multiplayer.Client.Patches
 
                 // Track this command to prevent duplicates
                 lastSentFromMap = previousMap;
+                lastSentTick = Find.TickManager?.TicksGame ?? 0;
             }
             catch (Exception ex)
             {
