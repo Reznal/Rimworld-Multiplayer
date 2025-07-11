@@ -36,7 +36,7 @@ public class SaveableMpLogs
 
     public static void ResetMpLogs() => _currentLogFile = null;
 
-    public static void AddLog(string logText)
+    public static void AddLog(string type, string logText)
     {
         if (Multiplayer.Client == null)
             return;
@@ -44,14 +44,14 @@ public class SaveableMpLogs
         if (_currentLogFile == null)
             InitMpLogs();
 
-        int ticks = Find.TickManager.ticksGameInt;
+        int ticks = Multiplayer.Client == null ? -1 : Find.TickManager?.TicksGame ?? -1;
         int mapTicks = Find.CurrentMap?.AsyncTime()?.mapTicks ?? -1;
 
         try
         {
             using var stream = File.Open(_currentLogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
             using var writer = new StreamWriter(stream, Encoding.UTF8);
-            writer.WriteLine($"[{ticks}] [{mapTicks}] {logText}");
+            writer.WriteLine($"[{type}] [{ticks}] [{mapTicks}] {logText}");
         }
         catch (Exception e)
         {
