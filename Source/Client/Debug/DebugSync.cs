@@ -3,15 +3,11 @@ using System.Collections.Generic;
 using HarmonyLib;
 using LudeonTK;
 using Multiplayer.Client.Util;
-using Multiplayer.Client.Util;
 using Multiplayer.Common;
-
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
-using static HarmonyLib.AccessTools;
-using static HarmonyLib.AccessTools;
 
 namespace Multiplayer.Client
 {

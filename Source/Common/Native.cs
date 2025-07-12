@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using HarmonyLib;
-using Verse;
 
 namespace Multiplayer.Client
 {

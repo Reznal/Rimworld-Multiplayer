@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
