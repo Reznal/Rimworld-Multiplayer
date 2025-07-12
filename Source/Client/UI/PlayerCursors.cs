@@ -36,7 +36,7 @@ public class PlayerCursors
         var writer = new ByteWriter();
         writer.WriteByte(cursorSeq++);
 
-        if (Find.CurrentMap != null && !WorldRendererUtility.WorldRendered)
+        if (Find.CurrentMap != null && !WorldRendererUtility.WorldSelected)
         {
             writer.WriteByte((byte)Find.CurrentMap.Index);
 
