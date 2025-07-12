@@ -1,3 +1,4 @@
+using Multiplayer.Client.Patches;
 using UnityEngine;
 using Verse;
 
@@ -47,7 +48,7 @@ namespace Multiplayer.Client.DebugUi
 
         public static StatusBadge GetVtrStatus()
         {
-            int rate = Find.CurrentMap?.AsyncTime()?.VTR ?? 15;
+            int rate = Find.CurrentMap?.AsyncTime()?.VTR ?? VTRSync.MaximumVtr;
             return new StatusBadge("V", rate == 15 ? Color.red : Color.green, rate.ToString(), $"Variable Tick Rate: Things update every {rate} tick(s)");
         }
 
