@@ -87,7 +87,6 @@ namespace Multiplayer.Client
                 }
             },
             {
-                // TODO: Check if this will actually be needed, remove if not
                 (ByteWriter data, FloatMenuContext context) =>
                 {
                     data.MpContext().map = context.map;

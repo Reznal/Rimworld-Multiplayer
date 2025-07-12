@@ -66,8 +66,22 @@ namespace Multiplayer.Client
 
         public int TickableId => map.uniqueID;
 
+        public int GameStartAbsTick
+        {
+            get
+            {
+                if (gameStartAbsTickMap == 0)
+                {
+                    gameStartAbsTickMap = Find.TickManager?.gameStartAbsTick ?? 0;
+                }
+
+                return gameStartAbsTickMap;
+            }
+        }
+
         public Map map;
         public int mapTicks;
+        private int gameStartAbsTickMap;
         private TimeSpeed timeSpeedInt;
         public bool forcedNormalSpeed;
         public int eventCount;
@@ -81,16 +95,21 @@ namespace Multiplayer.Client
         public TickList tickListLong = new(TickerType.Long);
 
         // Shared random state for ticking and commands
-        public ulong randState = 1;
+        public ulong randState;
 
         public Queue<ScheduledCommand> cmds = new();
 
         public int CurrentPlayerCount { get; private set; } = 0;
         public int VTR => CurrentPlayerCount > 0 ? VTRSync.MinimumVtr : VTRSync.MaximumVtr;
 
-        public AsyncTimeComp(Map map)
+        public AsyncTimeComp(Map map, int gameStartAbsTick = 0)
         {
             this.map = map;
+            this.gameStartAbsTickMap = gameStartAbsTick;
+
+            // Use the world's constant rand seed and map tile ID as our initial randState.
+            // Only fill the seed part, leave the iterations out.
+            randState = (uint)Gen.HashCombineInt(map.uniqueID, Find.World.ConstantRandSeed);
         }
 
         public void Tick()
@@ -201,6 +220,8 @@ namespace Multiplayer.Client
         {
             Scribe_Values.Look(ref mapTicks, "mapTicks");
             Scribe_Values.Look(ref timeSpeedInt, "timeSpeed");
+
+            Scribe_Values.Look(ref gameStartAbsTickMap, "gameStartAbsTickMap");
 
             Scribe_Deep.Look(ref storyteller, "storyteller");
 
@@ -403,6 +424,8 @@ namespace Multiplayer.Client
                     designator.DesignateThing(thing);
                     designator.Finalize(true);
                 }
+
+                SyncMethods.TryDirtyCurrentPawnTable(designator);
             }
             finally
             {
@@ -446,5 +469,4 @@ namespace Multiplayer.Client
         MultiCell,
         Thing
     }
-
 }

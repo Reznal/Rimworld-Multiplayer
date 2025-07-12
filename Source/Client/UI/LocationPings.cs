@@ -22,7 +22,7 @@ public class LocationPings
         if (pingsEnabled)
             if (MultiplayerStatic.PingKeyDef.JustPressed || KeyDown(Multiplayer.settings.sendPingButton))
             {
-                if (WorldRendererUtility.WorldRendered)
+                if (WorldRendererUtility.WorldSelected)
                     PingLocation(-1, GenWorld.MouseTile(), Vector3.zero);
                 else if (Find.CurrentMap != null)
                     PingLocation(Find.CurrentMap.uniqueID, 0, UI.MouseMapPosition());

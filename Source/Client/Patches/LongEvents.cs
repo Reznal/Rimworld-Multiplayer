@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -63,14 +64,20 @@ namespace Multiplayer.Client.Patches
         }
     }
 
-    [HarmonyPatch(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent),
-        typeof(Action), typeof(string), typeof(bool), typeof(Action<Exception>), typeof(bool), typeof(bool), typeof(Action))]
+    [HarmonyPatch(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent), [typeof(Action), typeof(string), typeof(bool), typeof(Action<Exception>), typeof(bool), typeof(bool), typeof(Action)])]
     static class LongEventAlwaysSync
     {
-        static void Prefix(ref bool doAsynchronously)
+        static void Prefix(ref bool doAsynchronously, ref Action action, Action callback)
         {
             if (Multiplayer.ExecutingCmds)
+            {
                 doAsynchronously = false;
+
+                // Callback is only called in asynchronous long events and will be skipped in
+                // a synchronous ones. Make sure they are called after the actual action.
+                if (callback != null)
+                    action += callback;
+            }
         }
     }
 }

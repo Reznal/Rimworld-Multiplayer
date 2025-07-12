@@ -21,7 +21,7 @@ public static class TimeControlPatch
     private static bool ShouldReset => Event.current.shift && Multiplayer.GameComp.IsLowestWins;
 
     private static ITickable Tickable =>
-        !WorldRendererUtility.WorldRendered && Multiplayer.GameComp.asyncTime
+        !WorldRendererUtility.WorldSelected && Multiplayer.GameComp.asyncTime
             ? Find.CurrentMap.AsyncTime()
             : Multiplayer.AsyncWorldTime;
 
@@ -394,7 +394,7 @@ public static class ColonistBarTimeControl
         }
         else
         {
-            if (WorldRendererUtility.WorldRendered) CameraJumper.TryHideWorld();
+            if (WorldRendererUtility.WorldSelected) CameraJumper.TryHideWorld();
             Current.Game.CurrentMap = map;
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
@@ -21,8 +22,7 @@ static class AttackNowPatch
     }
 }
 
-[HarmonyPatch(typeof(GetOrGenerateMapUtility), nameof(GetOrGenerateMapUtility.GetOrGenerateMap), typeof(PlanetTile), typeof(IntVec3), typeof(WorldObjectDef),
-    typeof(IEnumerable<GenStepWithParams>), typeof(bool))]
+[HarmonyPatch(typeof(GetOrGenerateMapUtility), nameof(GetOrGenerateMapUtility.GetOrGenerateMap), [typeof(PlanetTile), typeof(IntVec3), typeof(WorldObjectDef), typeof(IEnumerable<GenStepWithParams>), typeof(bool)])]
 static class MapGenFactionPatch
 {
     static void Prefix(PlanetTile tile)

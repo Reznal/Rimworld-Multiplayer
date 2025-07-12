@@ -63,8 +63,8 @@ namespace Multiplayer.Client
         {
             var writer = new ByteWriter();
 
-            writer.WriteInt32((int)MultiplayerData.modCtorRoundMode);
-            writer.WriteInt32((int)MultiplayerData.staticCtorRoundMode);
+            writer.WriteEnum(MultiplayerData.modCtorRoundMode);
+            writer.WriteEnum(MultiplayerData.staticCtorRoundMode);
             writer.WriteInt32(MultiplayerData.localDefInfos.Count);
 
             foreach (var kv in MultiplayerData.localDefInfos)
@@ -77,8 +77,7 @@ namespace Multiplayer.Client
             connection.SendFragmented(Packets.Client_JoinData, writer.ToArray());
         }
 
-        [PacketHandler(Packets.Server_JoinData)]
-        [IsFragmented]
+        [PacketHandler(Packets.Server_JoinData, allowFragmented: true)]
         public void HandleJoinData(ByteReader data)
         {
             Multiplayer.session.gameName = data.ReadString();
@@ -98,7 +97,7 @@ namespace Multiplayer.Client
 
             foreach (var local in MultiplayerData.localDefInfos)
             {
-                var status = (DefCheckStatus)defsData.ReadByte();
+                var status = defsData.ReadEnum<DefCheckStatus>();
                 local.Value.status = status;
 
                 if (status != DefCheckStatus.Ok)

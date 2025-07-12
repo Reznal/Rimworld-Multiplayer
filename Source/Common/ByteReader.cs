@@ -137,6 +137,49 @@ namespace Multiplayer.Common
             return result;
         }
 
+        public virtual T ReadEnum<T>() where T : Enum
+        {
+            Type type = Enum.GetUnderlyingType(typeof(T));
+
+            if (type == typeof(byte))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadByte());
+            }
+            else if (type == typeof(sbyte))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadSByte());
+            }
+            else if (type == typeof(short))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadShort());
+            }
+            else if (type == typeof(ushort))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadUShort());
+            }
+            else if (type == typeof(int))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadInt32());
+            }
+            else if (type == typeof(uint))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadUInt32());
+            }
+            else if (type == typeof(long) || type == typeof(IntPtr))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadLong());
+            }
+            else if (type == typeof(ulong) || type == typeof(UIntPtr))
+            {
+                return (T)Enum.ToObject(typeof(T), ReadULong());
+            }
+            else
+            {
+                // This should never happen
+                throw new ReaderException($"Enum type unknown ({type})");
+            }
+        }
+
         private int IncrementIndex(int size)
         {
             int i = index;

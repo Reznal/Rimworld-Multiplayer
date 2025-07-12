@@ -128,7 +128,7 @@ namespace Multiplayer.Common
             Packets packetType = (Packets)msgId;
             ServerLog.Verbose($"Received packet {this}: {packetType}");
 
-            var handler = StateObj?.GetPacketHandler(packetType) ?? MpConnectionState.packetHandlers[(int)State, (int)packetType];
+            var handler = StateObj?.GetPacketHandler(packetType);
             if (handler == null)
             {
                 if (reliable && !Lenient)
@@ -172,7 +172,7 @@ namespace Multiplayer.Common
         public static byte[] GetDisconnectBytes(MpDisconnectReason reason, byte[]? data = null)
         {
             var writer = new ByteWriter();
-            writer.WriteByte((byte)reason);
+            writer.WriteEnum(reason);
             writer.WritePrefixedBytes(data ?? Array.Empty<byte>());
             return writer.ToArray();
         }

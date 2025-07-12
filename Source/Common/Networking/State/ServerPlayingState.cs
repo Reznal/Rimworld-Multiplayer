@@ -4,12 +4,8 @@ using System.Linq;
 
 namespace Multiplayer.Common
 {
-    public class ServerPlayingState : MpConnectionState
+    public class ServerPlayingState(ConnectionBase conn) : MpConnectionState(conn)
     {
-        public ServerPlayingState(ConnectionBase conn) : base(conn)
-        {
-        }
-
         [PacketHandler(Packets.Client_WorldReady)]
         public void HandleWorldReady(ByteReader data)
         {
@@ -32,8 +28,7 @@ namespace Multiplayer.Common
             Server.playerManager.OnDesync(Player, tick, diffAt);
         }
 
-        [PacketHandler(Packets.Client_Traces)]
-        [IsFragmented]
+        [PacketHandler(Packets.Client_Traces, allowFragmented: true)]
         public void HandleTraces(ByteReader data)
         {
             var type = (TracesPacket)data.ReadInt32();
@@ -49,7 +44,7 @@ namespace Multiplayer.Common
         [PacketHandler(Packets.Client_Command)]
         public void HandleClientCommand(ByteReader data)
         {
-            CommandType cmd = (CommandType)data.ReadInt32();
+            CommandType cmd = data.ReadEnum<CommandType>();
             int mapId = data.ReadInt32();
             byte[]? extra = data.ReadPrefixedBytes(65535);
             if (extra == null) return;
@@ -81,8 +76,7 @@ namespace Multiplayer.Common
             }
         }
 
-        [PacketHandler(Packets.Client_WorldDataUpload)]
-        [IsFragmented]
+        [PacketHandler(Packets.Client_WorldDataUpload, allowFragmented: true)]
         public void HandleWorldDataUpload(ByteReader data)
         {
             if (Server.ArbiterPlaying ? !Player.IsArbiter : !Player.IsHost) // policy
@@ -196,11 +190,14 @@ namespace Multiplayer.Common
             if (Player.IsHost)
                 Server.workTicks = workTicks;
 
-            // Latency already handled by LiteNetLib
+            // Latency already handled by LiteNetLib. This can be as low as 0ms because LNL spawns its own thread for
+            // receiving packets and immediately processes its own internal keep alive packet (called Ping-Pong).
             if (connection is LiteNetConnection) return;
 
             if (Player.keepAliveId == id)
             {
+                // We are ticking network logic every ~30ms, which means that effectively the lowest ping achievable is
+                // ~15ms.
                 connection.Latency = (connection.Latency * 4 + (int)Player.keepAliveTimer.ElapsedMilliseconds / 2) / 5;
 
                 Player.keepAliveId++;
@@ -208,8 +205,7 @@ namespace Multiplayer.Common
             }
         }
 
-        [PacketHandler(Packets.Client_SyncInfo)]
-        [IsFragmented]
+        [PacketHandler(Packets.Client_SyncInfo, allowFragmented: true)]
         public void HandleDesyncCheck(ByteReader data)
         {
             var arbiter = Server.ArbiterPlaying;

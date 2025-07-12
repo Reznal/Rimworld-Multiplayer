@@ -141,10 +141,19 @@ namespace Multiplayer.Client
             return this;
         }
 
+        /// Throttles network updates for this field to reduce network chatter.
+        /// An update is sent only after the field has remained unchanged for 200ms.
+        /// If changes continue occurring within that window, the timer resets, and only
+        /// the latest value is eventually sent. All intermediate updates are discarded.
+        ///
+        /// The UI reflects the latest value immediately, without waiting for server
+        /// confirmation — avoiding rollback, and reapply behavior on server response.
+        ///
+        /// Ideal for rapidly changing fields (e.g., sliders) where sending every
+        /// intermediate value would be inefficient and unnecessary.
         public ISyncField SetBufferChanges()
         {
             SyncFieldUtil.bufferedChanges[this] = new();
-            Sync.bufferedFields.Add(this);
             bufferChanges = true;
             return this;
         }

@@ -177,7 +177,7 @@ namespace Multiplayer.Client
                     f.FieldType == typeof(FogGrid) ||
                     f.FieldType == typeof(ListerThings) ||
                     f.FieldType == typeof(LinkGrid) ||
-                    //f.FieldType == typeof(GlowFlooder) ||
+                    //f.FieldType == typeof(GlowFlooder) || //TODO: Check if there is a replacement for this - Looks like GlowGrid may be the only one now
                     f.FieldType == typeof(MapCellsInRandomOrder) ||
                     f.FieldType == typeof(GlowGrid) ||
                     f.FieldType == typeof(DeepResourceGrid) ||

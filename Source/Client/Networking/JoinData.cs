@@ -29,7 +29,7 @@ namespace Multiplayer.Client
                 data.WriteString(m.PackageIdNonUnique);
                 data.WriteString(m.Name);
                 data.WriteULong((ulong)m.GetPublishedFileId());
-                data.WriteByte((byte)m.Source);
+                data.WriteEnum(m.Source);
             }
 
             data.WriteInt32(modFilesSnapshot.Count());
@@ -74,7 +74,7 @@ namespace Multiplayer.Client
                 var packageId = data.ReadString();
                 var name = data.ReadString();
                 var steamId = data.ReadULong();
-                var source = (ContentSource)data.ReadByte();
+                var source = data.ReadEnum<ContentSource>();
 
                 remoteInfo.remoteMods.Add(new ModInfo() { packageId = packageId, name = name, steamId = steamId, source = source });
             }
@@ -128,7 +128,6 @@ namespace Multiplayer.Client
         [SuppressMessage("ReSharper", "StringLiteralTypo")]
         public static string[] ignoredConfigsModIds =
         {
-            // The old mod management code also included TacticalGroupsMod.xml and GraphicSetter.xml but I couldn't find their ids
             // todo unhardcode it
             "rwmt.multiplayer",
             "hodlhodl.twitchtoolkit", // contains username
@@ -141,7 +140,11 @@ namespace Multiplayer.Client
             "jelly.modswitch",
             "betterscenes.rimconnect", // contains secret key for streamer
             "jaxe.rimhud",
-            //"zetrith.prepatcher"
+            "telefonmast.graphicssettings",
+            "derekbickley.ltocolonygroupsfinal",
+            "dra.multiplayercustomtickrates", // syncs its own settings
+            "merthsoft.designatorshapes", // settings for UI and stuff meaningless for MP
+            //"zetrith.prepatcher",
         };
 
         public const string TempConfigsDir = "MultiplayerTempConfigs";

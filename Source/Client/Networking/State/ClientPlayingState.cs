@@ -56,8 +56,7 @@ namespace Multiplayer.Client
         [PacketHandler(Packets.Server_PlayerList)]
         public void HandlePlayerList(ByteReader data)
         {
-            var action = (PlayerListAction)data.ReadByte();
-
+            var action = data.ReadEnum<PlayerListAction>();
             if (action == PlayerListAction.Add)
             {
                 var info = PlayerInfo.Read(data);
@@ -93,7 +92,7 @@ namespace Multiplayer.Client
             else if (action == PlayerListAction.Status)
             {
                 var id = data.ReadInt32();
-                var status = (PlayerStatus)data.ReadByte();
+                var status = data.ReadEnum<PlayerStatus>();
                 var player = Multiplayer.session.GetPlayerInfo(id);
 
                 if (player != null)
@@ -208,8 +207,7 @@ namespace Multiplayer.Client
             Messages.Message(key.Translate(Array.ConvertAll(args, s => (NamedArgument)s)), MessageTypeDefOf.SilentInput, false);
         }
 
-        [PacketHandler(Packets.Server_SyncInfo)]
-        [IsFragmented]
+        [PacketHandler(Packets.Server_SyncInfo, allowFragmented: true)]
         public void HandleDesyncCheck(ByteReader data)
         {
             Multiplayer.game?.sync.AddClientOpinionAndCheckDesync(ClientSyncOpinion.Deserialize(data));
@@ -225,8 +223,7 @@ namespace Multiplayer.Client
             TickPatch.frozenAt = frozenAt;
         }
 
-        [PacketHandler(Packets.Server_Traces)]
-        [IsFragmented]
+        [PacketHandler(Packets.Server_Traces, allowFragmented: true)]
         public void HandleTraces(ByteReader data)
         {
             var type = (TracesPacket)data.ReadInt32();

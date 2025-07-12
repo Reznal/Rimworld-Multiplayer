@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Multiplayer.Client.Util;
 using RimWorld.Planet;
 using System;
 using System.Collections.Generic;
@@ -61,6 +62,7 @@ namespace Multiplayer.Client
     [HarmonyPatch(typeof(WorldGrid), MethodType.Constructor)]
     public static class WorldGridCachePatch
     {
+        public static AccessTools.FieldRef<WorldGrid, List<WorldDrawLayerBase>> globalLayers = AccessTools.FieldRefAccess<WorldGrid, List<WorldDrawLayerBase>>(nameof(WorldGrid.globalLayers));
         public static WorldGrid copyFrom;
 
         static bool Prefix(WorldGrid __instance, ref int ___cachedTraversalDistance, ref int ___cachedTraversalDistanceForStart, ref int ___cachedTraversalDistanceForEnd)
@@ -77,6 +79,7 @@ namespace Multiplayer.Client
             grid.surface.tileIDToVerts_offsets = copyFrom.UnsafeTileIDToVerts_offsets;
             grid.surface.averageTileSize = copyFrom.AverageTileSize;
             grid.surface.tiles.Clear();
+            globalLayers(grid) = copyFrom.globalLayers;
 
             ___cachedTraversalDistance = -1;
             ___cachedTraversalDistanceForStart = -1;
@@ -140,6 +143,22 @@ namespace Multiplayer.Client
         }
     }
 
-    // WorldRenderer patch removed since AllDrawLayers is computed dynamically
-    // and there's no actual caching being performed
+    //TODO: TEST: Test that this works with the new world generation
+    [HarmonyPatch(typeof(WorldGrid), (nameof(WorldGrid.InitializeGlobalLayers)))]
+    public static class WorldRendererCachePatch
+    {
+
+        public static AccessTools.FieldRef<WorldGrid, List<WorldDrawLayerBase>> globalLayers = AccessTools.FieldRefAccess<WorldGrid, List<WorldDrawLayerBase>>(nameof(WorldGrid.globalLayers));
+        public static WorldGrid copyFrom;
+
+        static bool Prefix(WorldGrid __instance)
+        {
+            if (copyFrom == null) return true;
+
+            globalLayers(__instance) = copyFrom.globalLayers;
+            copyFrom = null;
+
+            return false;
+        }
+    }
 }

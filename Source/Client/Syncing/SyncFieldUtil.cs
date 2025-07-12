@@ -12,6 +12,11 @@ namespace Multiplayer.Client
         public static Dictionary<SyncField, Dictionary<BufferTarget, BufferData>> bufferedChanges = new();
         private static Stack<FieldData?> watchedStack = new();
 
+        public static void StackPush(SyncField field, object target, object value, object index)
+        {
+            watchedStack.Push(new FieldData(field, target, value, index));
+        }
+
         public static void FieldWatchPrefix()
         {
             if (Multiplayer.Client == null) return;
@@ -23,99 +28,102 @@ namespace Multiplayer.Client
         {
             if (Multiplayer.Client == null) return;
 
-            while (watchedStack.Count > 0)
+            // Iterate until we hit the marker (`null`).
+            while (watchedStack.TryPop(out var dataOrNull) && dataOrNull is { } data)
             {
-                var dataOrNull = watchedStack.Pop();
-
-                if (dataOrNull is not { } data)
-                    break; // The marker
-
                 SyncField handler = data.handler;
-
                 object newValue = MpReflection.GetValue(data.target, handler.memberPath, data.index);
                 bool changed = !ValuesEqual(handler, newValue, data.oldValue);
                 var cache =
-                    handler.bufferChanges && !Multiplayer.IsReplay && !Multiplayer.GhostMode ?
-                        bufferedChanges.GetValueSafe(handler) :
-                        null;
+                    handler.bufferChanges && !Multiplayer.IsReplay && !Multiplayer.GhostMode
+                        ? bufferedChanges.GetValueSafe(handler)
+                        : null;
+                var bufferTarget = new BufferTarget(data.target, data.index);
+                var cachedData = cache?.GetValueSafe(bufferTarget);
 
-                if (cache != null && cache.TryGetValue(new(data.target, data.index), out BufferData cached))
+                // Revert the local field's value for simulation purposes.
+                // For unbuffered fields, this rollback is only necessary if the value actually changed.
+                // For buffered fields, however, we always perform the restore, since the value is overwritten
+                // whenever watching it begins — assuming the value was previously changed and thus the buffer was
+                // initialized.
+                // If any change has happened, we record it and either send it immediately (unbuffered field) or queue
+                // it (buffered field). The server will eventually acknowledge the change and send it back, at which
+                // point the field is updated.
+                if (changed || cachedData != null)
                 {
-                    if (changed && cached.sent)
-                        cached.sent = false;
+                    var simulationValue = cachedData?.actualValue ?? data.oldValue;
+                    MpReflection.SetValue(data.target, handler.memberPath, simulationValue, data.index);
+                }
 
-                    cached.toSend = SnapshotValueIfNeeded(handler, newValue);
-                    MpReflection.SetValue(data.target, handler.memberPath, cached.actualValue, data.index);
+                // No changes happened means no syncing needed either - we are done.
+                if (!changed)
+                    continue;
+
+                // For unbuffered fields, just immediately sync any changes.
+                if (cache == null)
+                {
+                    handler.DoSyncCatch(data.target, newValue, data.index);
                     continue;
                 }
 
-                if (!changed) continue;
-
-                if (cache != null)
+                // For buffered fields, update the value to be sent.
+                if (cachedData != null)
                 {
-                    BufferData bufferData = new BufferData(handler, data.oldValue, SnapshotValueIfNeeded(handler, newValue));
-                    cache[new(data.target, data.index)] = bufferData;
-                }
-                else
-                {
-                    handler.DoSyncCatch(data.target, newValue, data.index);
+                    cachedData.sent = false;
+                    cachedData.lastChangedAtMillis = Utils.MillisNow;
+                    cachedData.toSend = SnapshotValueIfNeeded(handler, newValue);
+                    continue;
                 }
 
-                MpReflection.SetValue(data.target, handler.memberPath, data.oldValue, data.index);
+                // The field is buffered but had no prior changes; initialize the cache entry now that a change has occurred.
+                cache[bufferTarget] = new BufferData(handler, data.oldValue, SnapshotValueIfNeeded(handler, newValue));
             }
         }
-
-        public static void StackPush(SyncField field, object target, object value, object index)
-        {
-            watchedStack.Push(new FieldData(field, target, value, index));
-        }
-
-        public static Func<BufferTarget, BufferData, bool> BufferedChangesPruner(Func<long> timeGetter)
-        {
-            return (target, data) =>
-            {
-                if (CheckShouldRemove(data.field, target, data))
-                    return true;
-
-                if (!data.sent && timeGetter() - data.timestamp > 200)
-                {
-                    if (data.field.DoSyncCatch(target.target, data.toSend, target.index) is false)
-                        return true;
-
-                    data.sent = true;
-                    data.timestamp = timeGetter();
-                }
-
-                return false;
-            };
-        }
-
-        private static Func<BufferTarget, BufferData, bool> bufferPredicate =
-            BufferedChangesPruner(() => Utils.MillisNow);
 
         public static void UpdateSync()
         {
-            foreach (SyncField f in Sync.bufferedFields)
+            foreach (var (field, fieldBufferedChanges) in bufferedChanges)
             {
-                if (f.inGameLoop) continue;
-                bufferedChanges[f].RemoveAll(bufferPredicate);
+                if (field.inGameLoop) continue;
+                fieldBufferedChanges.RemoveAll(SyncPendingAndPruneFinished);
             }
         }
 
-        public static bool CheckShouldRemove(SyncField field, BufferTarget target, BufferData data)
+        private static bool SyncPendingAndPruneFinished(BufferTarget target, BufferData data)
         {
-            if (data.sent && ValuesEqual(field, data.toSend, data.actualValue))
+            if (data.IsAlreadySynced(target))
                 return true;
+
+            var millisNow = Utils.MillisNow;
+            if (!data.sent && millisNow - data.lastChangedAtMillis > 200)
+            {
+                // If syncing fails with an exception don't try to reattempt and just give up.
+                if (data.field.DoSyncCatch(target.target, data.toSend, target.index) is false)
+                    return true;
+
+                data.sent = true;
+            }
+
+            return false;
+        }
+
+        private static bool IsAlreadySynced(this BufferData data, BufferTarget target)
+        {
+            var field = data.field;
+            if (data.sent && ValuesEqual(field, data.toSend, data.actualValue)) return true;
 
             object currentValue = target.target.GetPropertyOrField(field.memberPath, target.index);
 
-            if (!ValuesEqual(field, currentValue, data.actualValue))
-            {
-                if (data.sent)
-                    return true;
-                data.actualValue = SnapshotValueIfNeeded(field, currentValue);
-            }
+            // Data hasn't been sent yet, or we are waiting for the server to acknowledge it and send it back.
+            if (ValuesEqual(field, currentValue, data.actualValue)) return false;
 
+            // The last seen value differs from the current field value — likely because a sync command from the server
+            // has overwritten it (possibly even with the desired value). If we've already sent our update, we assume it's fine;
+            // once the server processes it, it will likely acknowledge and send back the update via another sync command,
+            // restoring the field to the intended value.
+            if (data.sent) return true;
+
+            data.actualValue = SnapshotValueIfNeeded(field, currentValue);
             return false;
         }
 
@@ -173,6 +181,10 @@ namespace Multiplayer.Client
     {
         public readonly SyncField handler;
         public readonly object target;
+        /// Reflects the value the field had before the most recent GUI update.
+        /// For unbuffered fields, this is also the current simulation value.
+        /// For buffered fields, which may modify the field across multiple `Watch` calls,
+        /// this represents the value at the start of the latest `Watch` invocation.
         public readonly object oldValue;
         public readonly object index;
 
@@ -207,19 +219,15 @@ namespace Multiplayer.Client
         }
     }
 
-    public class BufferData
+    public class BufferData(SyncField field, object actualValue, object toSend)
     {
-        public SyncField field;
-        public object actualValue;
-        public object toSend;
-        public long timestamp;
+        public SyncField field = field;
+        /// This is the real field's value. If this were an unbuffered field, it'd be equivalent to `FieldData.oldValue`,
+        /// however for buffered fields `oldValue` reflects the value prior to the last GUI update. Use this field to
+        /// access the original value before any user interaction occurred.
+        public object actualValue = actualValue;
+        public object toSend = toSend;
+        public long lastChangedAtMillis = Utils.MillisNow;
         public bool sent;
-
-        public BufferData(SyncField field, object actualValue, object toSend)
-        {
-            this.field = field;
-            this.actualValue = actualValue;
-            this.toSend = toSend;
-        }
     }
 }

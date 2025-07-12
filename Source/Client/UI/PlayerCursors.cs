@@ -67,7 +67,7 @@ public class PlayerCursors
         var writer = new ByteWriter();
 
         int mapId = Find.CurrentMap?.Index ?? -1;
-        if (WorldRendererUtility.WorldRendered) mapId = -1;
+        if (WorldRendererUtility.WorldSelected) mapId = -1;
 
         bool reset = false;
 

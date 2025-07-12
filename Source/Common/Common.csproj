@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
     <LangVersion>12</LangVersion>
@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4491-beta" />
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4518" />
     <PackageReference Include="LiteNetLib" Version="0.9.5.2" />
     <PackageReference Include="Lib.Harmony" Version="2.3.6" ExcludeAssets="runtime" />
     <PackageReference Include="System.IO.Compression" Version="4.3.0" />
