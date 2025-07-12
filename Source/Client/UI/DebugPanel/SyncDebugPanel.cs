@@ -241,20 +241,27 @@ namespace Multiplayer.Client.DebugUi
         {
             List<DebugLine> lines;
 
-            if (Find.CurrentMap?.AsyncTime() != null)
+            try
             {
-                AsyncTimeComp async = Find.CurrentMap.AsyncTime();
+                AsyncTimeComp async = Find.CurrentMap?.AsyncTime();
                 AsyncTime.AsyncWorldTimeComp worldAsync = Multiplayer.AsyncWorldTime;
 
-                lines = [
-                    new("Current Map:", GetRngStatesString(async.randState), Color.white),
-                    new("World RNG:", GetRngStatesString(worldAsync.randState), Color.white),
-                    new("Round Mode:", $"{RoundMode.GetCurrentRoundMode()}", Color.white)
-                ];
+                if (async != null && worldAsync != null)
+                {
+                    lines = [
+                        new("Current Map:", GetRngStatesString(async.randState), Color.white),
+                        new("World RNG:", GetRngStatesString(worldAsync.randState), Color.white),
+                        new("Round Mode:", $"{RoundMode.GetCurrentRoundMode()}", Color.white)
+                    ];
+                }
+                else
+                {
+                    lines = [new("RNG States:", "No async time available", Color.gray)];
+                }
             }
-            else
+            catch (Exception ex)
             {
-                lines = [new("RNG States:", "No current map", Color.gray)];
+                lines = [new("RNG States:", $"Error: {ex.Message}", Color.red)];
             }
 
             return DrawSection(x, y, width, new("RNG STATES", lines.ToArray()));
@@ -324,17 +331,25 @@ namespace Multiplayer.Client.DebugUi
         /// </summary>
         private static float DrawCoreSystemSection(float x, float y, float width)
         {
-            DebugLine[] coreLines = [
-                new("Faction Stack:", $"{FactionContext.stack.Count}", Color.white),
-                new("Player Faction:", $"{Faction.OfPlayer.loadID}", Color.white),
-                new("Real Player:", $"{Multiplayer.RealPlayerFaction?.loadID}", Color.white),
-                new("Next Thing ID:", $"{Find.UniqueIDsManager.nextThingID}", Color.white),
-                new("Next Job ID:", $"{Find.UniqueIDsManager.nextJobID}", Color.white),
-                new("Game Ticks:", $"{Find.TickManager.TicksGame}", Color.white),
-                new("Time Speed:", $"{Find.TickManager.CurTimeSpeed}", Color.white)
-            ];
+            try
+            {
+                DebugLine[] coreLines = [
+                    new("Faction Stack:", $"{FactionContext.stack?.Count ?? 0}", Color.white),
+                    new("Player Faction:", $"{Faction.OfPlayer?.loadID ?? -1}", Color.white),
+                    new("Real Player:", $"{Multiplayer.RealPlayerFaction?.loadID ?? -1}", Color.white),
+                    new("Next Thing ID:", $"{Find.UniqueIDsManager?.nextThingID ?? -1}", Color.white),
+                    new("Next Job ID:", $"{Find.UniqueIDsManager?.nextJobID ?? -1}", Color.white),
+                    new("Game Ticks:", $"{Find.TickManager?.TicksGame ?? -1}", Color.white),
+                    new("Time Speed:", $"{Find.TickManager?.CurTimeSpeed ?? TimeSpeed.Paused}", Color.white)
+                ];
 
-            return DrawSection(x, y, width, new("CORE SYSTEM", coreLines));
+                return DrawSection(x, y, width, new("CORE SYSTEM", coreLines));
+            }
+            catch (Exception ex)
+            {
+                DebugLine[] errorLines = [new("Core System:", $"Error: {ex.Message}", Color.red)];
+                return DrawSection(x, y, width, new("CORE SYSTEM", errorLines));
+            }
         }
 
         /// <summary>
@@ -342,18 +357,26 @@ namespace Multiplayer.Client.DebugUi
         /// </summary>
         private static float DrawTimingSyncSection(float x, float y, float width)
         {
-            int timerLag = TickPatch.tickUntil - TickPatch.Timer;
-            Color lagColor = StatusBadge.GetPerformanceColor(timerLag, 15, 30);
-            
-            DebugLine[] timingLines = [
-                new("Timer Lag:", $"{timerLag}", lagColor),
-                new("Timer:", $"{TickPatch.Timer}", Color.white),
-                new("Tick Until:", $"{TickPatch.tickUntil}", Color.white),
-                new("Raw Tick Timer:", $"{TickPatch.tickTimer.ElapsedMilliseconds}ms", Color.white),
-                new("World Settlements:", $"{Find.World.worldObjects.settlements.Count}", Color.white)
-            ];
+            try
+            {
+                int timerLag = TickPatch.tickUntil - TickPatch.Timer;
+                Color lagColor = StatusBadge.GetPerformanceColor(timerLag, 15, 30);
+                
+                DebugLine[] timingLines = [
+                    new("Timer Lag:", $"{timerLag}", lagColor),
+                    new("Timer:", $"{TickPatch.Timer}", Color.white),
+                    new("Tick Until:", $"{TickPatch.tickUntil}", Color.white),
+                    new("Raw Tick Timer:", $"{TickPatch.tickTimer?.ElapsedMilliseconds ?? 0}ms", Color.white),
+                    new("World Settlements:", $"{Find.World?.worldObjects?.settlements?.Count ?? 0}", Color.white)
+                ];
 
-            return DrawSection(x, y, width, new("TIMING & SYNC", timingLines));
+                return DrawSection(x, y, width, new("TIMING & SYNC", timingLines));
+            }
+            catch (Exception ex)
+            {
+                DebugLine[] errorLines = [new("Timing Sync:", $"Error: {ex.Message}", Color.red)];
+                return DrawSection(x, y, width, new("TIMING & SYNC", errorLines));
+            }
         }
 
         /// <summary>
@@ -361,17 +384,25 @@ namespace Multiplayer.Client.DebugUi
         /// </summary>
         private static float DrawGameStateSection(float x, float y, float width)
         {
-            AsyncTimeComp async = Find.CurrentMap.AsyncTime();
-            
-            DebugLine[] gameStateLines = [
-                new("Classic Mode:", $"{Find.IdeoManager.classicMode}", Color.white),
-                new("Client Opinions:", $"{Multiplayer.game.sync.knownClientOpinions.Count}", Color.white),
-                new("First Opinion Tick:", $"{Multiplayer.game.sync.knownClientOpinions.FirstOrDefault()?.startTick}", Color.white),
-                new("Map Ticks:", $"{async.mapTicks}", Color.white),
-                new("Frozen At:", $"{TickPatch.frozenAt}", Color.white)
-            ];
+            try
+            {
+                AsyncTimeComp async = Find.CurrentMap?.AsyncTime();
+                
+                DebugLine[] gameStateLines = [
+                    new("Classic Mode:", $"{Find.IdeoManager?.classicMode ?? false}", Color.white),
+                    new("Client Opinions:", $"{Multiplayer.game?.sync?.knownClientOpinions?.Count ?? 0}", Color.white),
+                    new("First Opinion Tick:", $"{Multiplayer.game?.sync?.knownClientOpinions?.FirstOrDefault()?.startTick ?? -1}", Color.white),
+                    new("Map Ticks:", $"{async?.mapTicks ?? -1}", Color.white),
+                    new("Frozen At:", $"{TickPatch.frozenAt}", Color.white)
+                ];
 
-            return DrawSection(x, y, width, new("GAME STATE", gameStateLines));
+                return DrawSection(x, y, width, new("GAME STATE", gameStateLines));
+            }
+            catch (Exception ex)
+            {
+                DebugLine[] errorLines = [new("Game State:", $"Error: {ex.Message}", Color.red)];
+                return DrawSection(x, y, width, new("GAME STATE", errorLines));
+            }
         }
 
         /// <summary>
@@ -394,17 +425,25 @@ namespace Multiplayer.Client.DebugUi
         /// </summary>
         private static float DrawCommandSyncSection(float x, float y, float width)
         {
-            AsyncTimeComp async = Find.CurrentMap.AsyncTime();
-            
-            DebugLine[] commandLines = [
-                new("Async Commands:", $"{async.cmds.Count}", Color.white),
-                new("World Commands:", $"{Multiplayer.AsyncWorldTime.cmds.Count}", Color.white),
-                new("Force Normal Speed:", $"{async.slower.forceNormalSpeedUntil}", Color.white),
-                new("Async Time Status:", $"{Multiplayer.GameComp.asyncTime}", Color.white),
-                new("Buffered Changes:", $"{SyncFieldUtil.bufferedChanges.Sum(kv => kv.Value.Count)}", Color.white)
-            ];
+            try
+            {
+                AsyncTimeComp async = Find.CurrentMap?.AsyncTime();
+                
+                DebugLine[] commandLines = [
+                    new("Async Commands:", $"{async?.cmds?.Count ?? 0}", Color.white),
+                    new("World Commands:", $"{Multiplayer.AsyncWorldTime?.cmds?.Count ?? 0}", Color.white),
+                    new("Force Normal Speed:", $"{async?.slower?.forceNormalSpeedUntil ?? -1}", Color.white),
+                    new("Async Time Status:", $"{Multiplayer.GameComp?.asyncTime ?? false}", Color.white),
+                    new("Buffered Changes:", $"{SyncFieldUtil.bufferedChanges?.Sum(kv => kv.Value?.Count ?? 0) ?? 0}", Color.white)
+                ];
 
-            return DrawSection(x, y, width, new("COMMAND & SYNC", commandLines));
+                return DrawSection(x, y, width, new("COMMAND & SYNC", commandLines));
+            }
+            catch (Exception ex)
+            {
+                DebugLine[] errorLines = [new("Command Sync:", $"Error: {ex.Message}", Color.red)];
+                return DrawSection(x, y, width, new("COMMAND & SYNC", errorLines));
+            }
         }
 
         /// <summary>
@@ -430,15 +469,23 @@ namespace Multiplayer.Client.DebugUi
         /// </summary>
         private static float DrawMapManagementSection(float x, float y, float width)
         {
-            DebugLine[] mapLines = [
-                new("Haul Destinations:", $"{Find.CurrentMap.haulDestinationManager.AllHaulDestinationsListForReading.Count}", Color.white),
-                new("Designations:", $"{Find.CurrentMap.designationManager.designationsByDef.Count}", Color.white),
-                new("Haulable Items:", $"{Find.CurrentMap.listerHaulables.ThingsPotentiallyNeedingHauling().Count}", Color.white),
-                new("Mining Designations:", $"{Find.CurrentMap.designationManager.SpawnedDesignationsOfDef(DesignationDefOf.Mine).Count()}", Color.white),
-                new("First Ideology ID:", $"{Find.IdeoManager.IdeosInViewOrder.FirstOrDefault()?.id}", Color.white)
-            ];
+            try
+            {
+                DebugLine[] mapLines = [
+                    new("Haul Destinations:", $"{Find.CurrentMap?.haulDestinationManager?.AllHaulDestinationsListForReading?.Count ?? 0}", Color.white),
+                    new("Designations:", $"{Find.CurrentMap?.designationManager?.designationsByDef?.Count ?? 0}", Color.white),
+                    new("Haulable Items:", $"{Find.CurrentMap?.listerHaulables?.ThingsPotentiallyNeedingHauling()?.Count ?? 0}", Color.white),
+                    new("Mining Designations:", $"{Find.CurrentMap?.designationManager?.SpawnedDesignationsOfDef(DesignationDefOf.Mine)?.Count() ?? 0}", Color.white),
+                    new("First Ideology ID:", $"{Find.IdeoManager?.IdeosInViewOrder?.FirstOrDefault()?.id ?? -1}", Color.white)
+                ];
 
-            return DrawSection(x, y, width, new("MAP MANAGEMENT", mapLines));
+                return DrawSection(x, y, width, new("MAP MANAGEMENT", mapLines));
+            }
+            catch (Exception ex)
+            {
+                DebugLine[] errorLines = [new("Map Management:", $"Error: {ex.Message}", Color.red)];
+                return DrawSection(x, y, width, new("MAP MANAGEMENT", errorLines));
+            }
         }
 
         // Helper methods for UI drawing
