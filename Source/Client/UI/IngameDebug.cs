@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using Multiplayer.Client.Desyncs;
 using Multiplayer.Client.Util;
@@ -102,7 +101,6 @@ public static class IngameDebug
         //if (Event.current.type == EventType.Repaint)
         //    RandGetValuePatch.tracesThistick = 0;
     }
-
 
     internal static float DoDevInfo(float y)
     {

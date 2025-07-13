@@ -1,8 +1,9 @@
-using System;
 using HarmonyLib;
+using Multiplayer.Client.Patches;
 using Multiplayer.Client.Util;
 using Multiplayer.Common;
 using RimWorld.Planet;
+using System;
 using Verse;
 
 namespace Multiplayer.Client.Patches
@@ -41,7 +42,7 @@ namespace Multiplayer.Client.Patches
             if (Multiplayer.Client == null)
                 return true;
 
-            __result = 15;
+            __result = VTRSync.MaximumVtr;
             return false;
         }
     }
@@ -121,7 +122,7 @@ namespace Multiplayer.Client.Patches
                     int currentMapId = Find.CurrentMap?.uniqueID ?? -1;
                     Multiplayer.Client.SendCommand(CommandType.PlayerCount, ScheduledCommand.Global, ByteWriter.GetBytes(VTRSync.WorldMapId, currentMapId));
                 }
-                
+
                 lastRenderMode = __result;
             }
             catch (Exception ex)
@@ -130,4 +131,4 @@ namespace Multiplayer.Client.Patches
             }
         }
     }
-} 
+}
