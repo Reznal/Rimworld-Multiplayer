@@ -24,7 +24,7 @@ namespace Multiplayer.Client.DebugUi
         // Panel dimensions
         private const float HeaderHeight = 40f;
         private const float VisibleExpandedHeight = 400f;
-        private const float ContentHeight = 1300f;
+        private const float ContentHeight = 1500f;
         private const float PanelWidth = 275f;
 
         // Visual constants
@@ -184,6 +184,7 @@ namespace Multiplayer.Client.DebugUi
             currentY += DrawStatusSummarySection(viewRect.x + Margin, currentY, viewRect.width - Margin);
             currentY += DrawRngStatesSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
             currentY += DrawPerformanceSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
+            currentY += DrawPerformanceRecorderSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
             currentY += DrawNetworkSyncSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
             currentY += DrawCoreSystemSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
             currentY += DrawTimingSyncSection(viewRect.x + Margin, currentY, viewRect.width - Margin);
@@ -235,6 +236,68 @@ namespace Multiplayer.Client.DebugUi
         }
 
         /// <summary>
+        /// Draw performance recorder section with controls
+        /// </summary>
+        private static float DrawPerformanceRecorderSection(float x, float y, float width)
+        {
+            StatusBadge recordingStatus = PerformanceRecorder.GetRecordingStatus();
+            
+            var lines = new List<DebugLine>
+            {
+                new("Status:", recordingStatus.text, recordingStatus.color),
+                new("Frame Count:", PerformanceRecorder.FrameCount.ToString(), Color.white)
+            };
+
+            if (PerformanceRecorder.IsRecording)
+            {
+                var duration = PerformanceRecorder.RecordingDuration;
+                lines.Add(new("Duration:", $"{duration.TotalSeconds:F1}s", Color.white));
+                lines.Add(new("Avg FPS:", PerformanceRecorder.AverageFPS > 0 ? $"{PerformanceRecorder.AverageFPS:F1}" : "N/A", Color.white));
+                lines.Add(new("Avg TPS:", PerformanceRecorder.AverageTPS > 0 ? $"{PerformanceRecorder.AverageTPS:F1}" : "N/A", Color.white));
+                lines.Add(new("TPS Perf:", PerformanceRecorder.AverageNormalizedTPS > 0 ? $"{PerformanceRecorder.AverageNormalizedTPS:F1}%" : "N/A", Color.white));
+            }
+
+            var section = new DebugSection("PERFORMANCE RECORDER", lines.ToArray());
+            float sectionHeight = DrawSection(x, y, width, section);
+            
+            // Add control buttons below the section
+            float buttonY = y + sectionHeight - SectionSpacing + 4f;
+            float buttonHeight = DrawRecorderControls(x, buttonY, width);
+            
+            return sectionHeight + buttonHeight;
+        }
+
+        /// <summary>
+        /// Draw performance recorder control buttons
+        /// </summary>
+        private static float DrawRecorderControls(float x, float y, float width)
+        {
+            var buttonWidth = 60f;
+            var buttonHeight = 20f;
+            var spacing = 4f;
+            
+            var startRect = new Rect(x, y, buttonWidth, buttonHeight);
+            var stopRect = new Rect(x + buttonWidth + spacing, y, buttonWidth, buttonHeight);
+            
+            GUI.color = PerformanceRecorder.IsRecording ? Color.gray : Color.white;
+            
+            if (Widgets.ButtonText(startRect, "Start") && !PerformanceRecorder.IsRecording)
+            {
+                PerformanceRecorder.StartRecording();
+            }
+
+            GUI.color = !PerformanceRecorder.IsRecording ? Color.gray : Color.white;
+            
+            if (Widgets.ButtonText(stopRect, "Stop") && PerformanceRecorder.IsRecording)
+            {
+                PerformanceRecorder.StopRecording();
+            }
+            
+            GUI.color = Color.white;
+            return buttonHeight + spacing;
+        }
+
+        /// <summary>
         /// Draw RNG states comparison section
         /// </summary>
         private static float DrawRngStatesSection(float x, float y, float width)
@@ -276,14 +339,18 @@ namespace Multiplayer.Client.DebugUi
         {
             // TPS
             float tps = IngameUIPatch.tps;
-            Color tpsColor = StatusBadge.GetPerformanceColor(tps, 40f, 20f);
+            float normalizedTps = StatusBadge.GetNormalizedTPS(tps);
+            float targetTps = StatusBadge.GetTargetTPS();
+            Color tpsColor = StatusBadge.GetPerformanceColor(normalizedTps, 90f, 70f);
 
             // Frame time
             float frameTime = Time.deltaTime * 1000f;
             Color frameColor = StatusBadge.GetPerformanceColor(frameTime, 20f, 35f, true);
 
             DebugLine[] lines = [
-                new("Map TPS:", $"{tps:F1}", tpsColor),
+                new("Map TPS:", $"{tps:F1}", Color.white),
+                new("Target TPS:", $"{targetTps:F0}", Color.gray),
+                new("TPS Perf:", $"{normalizedTps:F1}%", tpsColor),
                 new("Frame Time:", $"{frameTime:F1}ms", frameColor),
                 new("Server TPT:", $"{TickPatch.serverTimePerTick:F1}ms", Color.white),
                 new("Avg Frame:", $"{TickPatch.avgFrameTime:F1}ms", Color.white)
