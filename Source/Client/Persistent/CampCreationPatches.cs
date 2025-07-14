@@ -48,16 +48,4 @@ namespace Multiplayer.Client.Persistent
             }, "GeneratingMap", doAsynchronously: true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
         }
     }
-
-    [HarmonyPatch(typeof(Current), nameof(Current.Game), MethodType.Setter)]
-    internal static class CurrentGameSetterPatch
-    {
-        static void Prefix(Game value)
-        {
-            if (value?.CurrentMap != null)
-            {
-                MpLog.Debug($"[CurrentGameSetter] Setting CurrentMap to: {value.CurrentMap.uniqueID} ({value.CurrentMap.Parent?.GetType().Name}), stack trace: {Environment.StackTrace}");
-            }
-        }
-    }
 }
