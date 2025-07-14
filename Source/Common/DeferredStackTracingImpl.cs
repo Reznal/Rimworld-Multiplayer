@@ -261,7 +261,6 @@ public static class DeferredStackTracingImpl
             if (Native.mono_jit_info_table_find(Native.DomainPtr, *(IntPtr*)(cand + 8)) == IntPtr.Zero)
                 continue;
 
-            Verse.Log.Message($"[rbp] saved [{i}] RBP 0x{*(&local + i):X}");
             return cand;                              // looks like a real frame ptr
         }
 
