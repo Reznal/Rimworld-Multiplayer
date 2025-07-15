@@ -43,7 +43,7 @@ public static class PerformanceRecorder
     private static List<int> clientOpinionsSamples = new List<int>();
     private static List<int> worldPawnsSamples = new List<int>();
     private static List<int> windowCountSamples = new List<int>();
-
+    
     public static bool IsRecording => isRecording;
     public static int FrameCount => recordingFrameCount;
     public static TimeSpan RecordingDuration => isRecording ? DateTime.Now - recordingStartTime : TimeSpan.Zero;
@@ -132,7 +132,13 @@ public static class PerformanceRecorder
                 var async = Find.CurrentMap.AsyncTime();
                 float currentTps = IngameUIPatch.tps;
                 tpsSamples.Add(currentTps);
-                normalizedTpsSamples.Add(StatusBadge.GetNormalizedTPS(currentTps));
+                
+                // Only record normalized TPS if we're not in stabilization period
+                if (PerformanceCalculator.GetStableNormalizedTPS(currentTps) is float stableNormalizedTps)
+                {
+                    normalizedTpsSamples.Add(stableNormalizedTps);
+                }
+                
                 serverTPTSamples.Add(TickPatch.serverTimePerTick);
                 mapCmdsSamples.Add(async.cmds?.Count ?? 0);
                 worldCmdsSamples.Add(Multiplayer.AsyncWorldTime?.cmds?.Count ?? 0);
@@ -144,8 +150,8 @@ public static class PerformanceRecorder
         // Memory/system metrics
         worldPawnsSamples.Add(Find.WorldPawns?.AllPawnsAliveOrDead?.Count ?? 0);
         windowCountSamples.Add(Find.WindowStack?.windows?.Count ?? 0);
-    }
-
+        }
+        
     private static PerformanceResults GenerateResults(TimeSpan duration)
     {
         return new PerformanceResults
@@ -234,7 +240,7 @@ public static class PerformanceRecorder
     {
         try
         {
-            var fileName = $"mp_performance_{results.StartTime:yyyyMMdd_HHmmss}.txt";
+            var fileName = $"MpLogs/MpPerf-{results.StartTime:MMddHHmmss}.txt";
             var filePath = Path.Combine(GenFilePaths.SaveDataFolderPath, fileName);
 
             var sb = new StringBuilder();
@@ -255,23 +261,26 @@ public static class PerformanceRecorder
             AppendDetailedStats(sb, "Ticks Per Second (Raw)", results.TPS);
             AppendDetailedStats(sb, "TPS Performance (%)", results.NormalizedTPS);
             AppendDetailedStats(sb, "Server Time Per Tick (ms)", results.ServerTPT);
-            sb.AppendLine();
-
-            sb.AppendLine("NETWORKING METRICS");
-            sb.AppendLine("------------------");
             AppendDetailedStats(sb, "Timer Lag", results.TimerLag);
-            AppendDetailedStats(sb, "Received Commands", results.ReceivedCmds);
-            AppendDetailedStats(sb, "Sent Commands", results.SentCmds);
-            AppendDetailedStats(sb, "Buffered Changes", results.BufferedChanges);
-            AppendDetailedStats(sb, "Map Commands", results.MapCmds);
-            AppendDetailedStats(sb, "World Commands", results.WorldCmds);
+
             sb.AppendLine();
 
-            sb.AppendLine("SYSTEM METRICS");
-            sb.AppendLine("--------------");
+
+
+            sb.AppendLine("MISC METRICS");
+            sb.AppendLine("------------");
             AppendDetailedStats(sb, "Client Opinions", results.ClientOpinions);
             AppendDetailedStats(sb, "World Pawns", results.WorldPawns);
             AppendDetailedStats(sb, "Window Count", results.WindowCount);
+            sb.AppendLine();
+
+            sb.AppendLine("COMMAND METRICS");
+            sb.AppendLine("---------------");
+            AppendCountStats(sb, "Received Commands", (int)results.ReceivedCmds.Max);
+            AppendCountStats(sb, "Sent Commands", (int)results.SentCmds.Max);
+            AppendCountStats(sb, "Buffered Changes", (int)results.BufferedChanges.Max);
+            AppendCountStats(sb, "Map Commands", (int)results.MapCmds.Max);
+            AppendCountStats(sb, "World Commands", (int)results.WorldCmds.Max);
             sb.AppendLine();
 
             sb.AppendLine("SYSTEM INFORMATION");
@@ -298,6 +307,10 @@ public static class PerformanceRecorder
         sb.AppendLine($"{name,-25} Avg: {stats.Average,8:F2}  Min: {stats.Min,8:F2}  Max: {stats.Max,8:F2}  Samples: {stats.Count,6:N0}");
     }
 
+    private static void AppendCountStats(StringBuilder sb, string name, int count)
+    {
+        sb.AppendLine($"{name,-25} Count: {count,6:N0}");
+    }
     /// <summary>
     /// Draw performance recorder section for debug panel
     /// </summary>

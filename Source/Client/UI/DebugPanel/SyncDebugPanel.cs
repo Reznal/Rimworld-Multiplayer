@@ -254,7 +254,15 @@ namespace Multiplayer.Client.DebugUi
                 lines.Add(new("Duration:", $"{duration.TotalSeconds:F1}s", Color.white));
                 lines.Add(new("Avg FPS:", PerformanceRecorder.AverageFPS > 0 ? $"{PerformanceRecorder.AverageFPS:F1}" : "N/A", Color.white));
                 lines.Add(new("Avg TPS:", PerformanceRecorder.AverageTPS > 0 ? $"{PerformanceRecorder.AverageTPS:F1}" : "N/A", Color.white));
-                lines.Add(new("TPS Perf:", PerformanceRecorder.AverageNormalizedTPS > 0 ? $"{PerformanceRecorder.AverageNormalizedTPS:F1}%" : "N/A", Color.white));
+                
+                if (PerformanceCalculator.IsInStabilizationPeriod())
+                {
+                    lines.Add(new("TPS Perf:", "STABILIZING", Color.yellow));
+                }
+                else
+                {
+                    lines.Add(new("TPS Perf:", PerformanceRecorder.AverageNormalizedTPS > 0 ? $"{PerformanceRecorder.AverageNormalizedTPS:F1}%" : "N/A", Color.white));
+                }
             }
 
             var section = new DebugSection("PERFORMANCE RECORDER", lines.ToArray());
@@ -339,18 +347,30 @@ namespace Multiplayer.Client.DebugUi
         {
             // TPS
             float tps = IngameUIPatch.tps;
-            float normalizedTps = StatusBadge.GetNormalizedTPS(tps);
-            float targetTps = StatusBadge.GetTargetTPS();
-            Color tpsColor = StatusBadge.GetPerformanceColor(normalizedTps, 90f, 70f);
+            float targetTps = PerformanceCalculator.GetTargetTPS();
+            string tpsPerformanceText;
+            Color tpsColor;
+            
+            if (PerformanceCalculator.IsInStabilizationPeriod())
+            {
+                tpsPerformanceText = "STABILIZING";
+                tpsColor = Color.yellow;
+            }
+            else
+            {
+                float normalizedTps = PerformanceCalculator.GetNormalizedTPS(tps);
+                tpsPerformanceText = $"{normalizedTps:F1}%";
+                tpsColor = PerformanceCalculator.GetPerformanceColor(normalizedTps, 90f, 70f);
+            }
 
             // Frame time
             float frameTime = Time.deltaTime * 1000f;
-            Color frameColor = StatusBadge.GetPerformanceColor(frameTime, 20f, 35f, true);
+            Color frameColor = PerformanceCalculator.GetPerformanceColor(frameTime, 20f, 35f, true);
 
             DebugLine[] lines = [
                 new("Map TPS:", $"{tps:F1}", Color.white),
                 new("Target TPS:", $"{targetTps:F0}", Color.gray),
-                new("TPS Perf:", $"{normalizedTps:F1}%", tpsColor),
+                new("TPS Perf:", tpsPerformanceText, tpsColor),
                 new("Frame Time:", $"{frameTime:F1}ms", frameColor),
                 new("Server TPT:", $"{TickPatch.serverTimePerTick:F1}ms", Color.white),
                 new("Avg Frame:", $"{TickPatch.avgFrameTime:F1}ms", Color.white)
@@ -427,7 +447,7 @@ namespace Multiplayer.Client.DebugUi
             try
             {
                 int timerLag = TickPatch.tickUntil - TickPatch.Timer;
-                Color lagColor = StatusBadge.GetPerformanceColor(timerLag, 15, 30);
+                Color lagColor = PerformanceCalculator.GetPerformanceColor(timerLag, 15, 30);
                 
                 DebugLine[] timingLines = [
                     new("Timer Lag:", $"{timerLag}", lagColor),
