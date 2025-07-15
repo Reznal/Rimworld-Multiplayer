@@ -1,7 +1,5 @@
 using System;
 using System.Runtime.CompilerServices;
-using UnityEngine;
-using Verse;
 
 namespace Multiplayer.Client.Desyncs;
 
