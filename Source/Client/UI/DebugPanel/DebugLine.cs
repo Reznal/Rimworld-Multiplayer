@@ -16,5 +16,4 @@ namespace Multiplayer.Client.DebugUi
             Color = color;
         }
     }
-    
 } 
