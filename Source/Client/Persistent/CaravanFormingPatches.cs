@@ -204,7 +204,7 @@ namespace Multiplayer.Client.Persistent
                     // RNG shouldn't be invoked but TryAddWaypoint is quite complex and calls pathfinding
                     Rand.PushState();
 
-                    WorldRoutePlanner worldRoutePlanner = Find.WorldRoutePlanner;
+                    var worldRoutePlanner = Find.WorldRoutePlanner;
                     worldRoutePlanner.Start(dialog);
                     worldRoutePlanner.TryAddWaypoint(routePlannerWaypoint.Value);
                 }
